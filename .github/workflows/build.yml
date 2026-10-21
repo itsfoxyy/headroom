@@ -1,0 +1,17 @@
+name: Build
+
+# Checks that every push and pull request still compiles.
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile
+        run: swift build -c release
+      - name: Package
+        run: ./build.sh --no-install

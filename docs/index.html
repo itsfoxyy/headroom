@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Headroom — AI usage limits in your menu bar</title>
+<meta name="description" content="Free, open-source macOS menu bar app that shows your Claude, ChatGPT and Cursor usage limits.">
+<link rel="icon" href="icon.png">
+<style>
+  :root {
+    --bg: #F7F6F2; --text: #1D1D1F; --muted: #5F5D58; --card: #FFFFFF; --line: #E4E1DA;
+    --claude: #D97757; --chatgpt: #1F8A70; --cursor: #5B7BEA; --button: #1D1D1F; --button-text: #FFFFFF;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141518; --text: #F2F2F2; --muted: #A9A9AF; --card: #1E2024; --line: #2E3036;
+      --claude: #E08A6B; --chatgpt: #3FB28F; --cursor: #7D97F2; --button: #F2F2F2; --button-text: #141518;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 17px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 72px 20px 56px; }
+  header { text-align: center; }
+  header img { width: 128px; height: 128px; }
+  h1 { font-size: 48px; letter-spacing: -0.02em; margin: 12px 0 4px; }
+  .lede { font-size: 20px; color: var(--muted); margin: 0 auto; max-width: 520px; }
+  .actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 28px 0 8px; }
+  .button {
+    display: inline-flex; align-items: center; min-height: 44px; padding: 0 22px; border-radius: 10px;
+    background: var(--button); color: var(--button-text); text-decoration: none; font-weight: 600;
+  }
+  .button.secondary { background: transparent; color: var(--text); border: 1px solid var(--line); }
+  .small { font-size: 14px; color: var(--muted); text-align: center; }
+  .bar {
+    margin: 48px auto 0; max-width: 560px; background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; padding: 18px 20px; display: grid; gap: 14px;
+  }
+  .row { display: grid; grid-template-columns: 84px minmax(0, 1fr) 48px; align-items: center; gap: 12px; font-size: 15px; }
+  .name { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  .dot { width: 8px; height: 8px; border-radius: 4px; flex-shrink: 0; }
+  .track { height: 6px; border-radius: 3px; background: var(--line); }
+  .fill { height: 6px; border-radius: 3px; }
+  .pct { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+  h2 { font-size: 24px; margin: 56px 0 12px; }
+  ul { padding-left: 20px; }
+  li { margin: 6px 0; }
+  ol li { margin: 8px 0; }
+  code { font: 15px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--card); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+  a { color: inherit; }
+  footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+  @media (max-width: 520px) { h1 { font-size: 38px; } .row { grid-template-columns: 84px minmax(0, 1fr) 44px; gap: 10px; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="icon.png" alt="Headroom icon: three nested rings">
+    <h1>Headroom</h1>
+    <p class="lede">Your Claude, ChatGPT and Cursor usage limits, one glance away in the macOS menu bar.</p>
+    <div class="actions">
+      <a class="button" href="https://github.com/itsfoxyy/headroom/releases/latest">Download for Mac</a>
+      <a class="button secondary" href="https://github.com/itsfoxyy/headroom">View source</a>
+    </div>
+    <p class="small">Free and open source · macOS 13 or later</p>
+  </header>
+
+  <div class="bar" role="img" aria-label="Example: Claude 42 percent, ChatGPT 64 percent, Cursor 62 percent used">
+    <div class="row"><span class="name"><span class="dot" style="background: var(--chatgpt)"></span>ChatGPT</span><span class="track"><span class="fill" style="display:block; width: 64%; background: var(--chatgpt)"></span></span><span class="pct">64%</span></div>
+    <div class="row"><span class="name"><span class="dot" style="background: var(--cursor)"></span>Cursor</span><span class="track"><span class="fill" style="display:block; width: 62%; background: var(--cursor)"></span></span><span class="pct">62%</span></div>
+    <div class="row"><span class="name"><span class="dot" style="background: var(--claude)"></span>Claude</span><span class="track"><span class="fill" style="display:block; width: 42%; background: var(--claude)"></span></span><span class="pct">42%</span></div>
+  </div>
+
+  <h2>What it does</h2>
+  <ul>
+    <li>One ring per service in the menu bar, plus the limit that's closest to running out.</li>
+    <li>Claude's session and weekly limits, ChatGPT's Codex 5-hour and weekly windows, and Cursor's weekly or monthly allowance.</li>
+    <li>A global shortcut (⌥⌘U) for a quick peek from any app.</li>
+    <li>Alerts at 80% and 95%, launch at login, light and dark mode.</li>
+  </ul>
+
+  <h2>Install</h2>
+  <ol>
+    <li>Download the zip from the <a href="https://github.com/itsfoxyy/headroom/releases/latest">latest release</a> and unzip it.</li>
+    <li>Move <b>Headroom.app</b> to Applications and open it.</li>
+    <li>If macOS can't verify the developer, go to <b>System Settings › Privacy &amp; Security</b> and click <b>Open Anyway</b> (once).</li>
+    <li>Click the rings, then <b>Settings… › Services</b> to sign in. Use email sign-in; passkeys don't work there.</li>
+  </ol>
+
+  <h2>Private by design</h2>
+  <p>Your sign-ins stay on your Mac. Headroom only talks to claude.ai, chatgpt.com and cursor.com, the same way their own usage pages do. There are no servers, no analytics and no tracking, and every line of code is <a href="https://github.com/itsfoxyy/headroom">public</a>.</p>
+
+  <footer>
+    Headroom is not affiliated with Anthropic, OpenAI or Anysphere (Cursor). These services don't offer official usage APIs, so a change on their side can break a service until Headroom is updated. MIT License.
+  </footer>
+</main>
+</body>
+</html>
