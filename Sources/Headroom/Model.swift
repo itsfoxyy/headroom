@@ -127,6 +127,16 @@ enum ProviderError: LocalizedError {
     case noAccount
     case unreadable
     case planMoved(String)
+    /// Cloudflare asked for a browser check; usually clears after a page refresh.
+    case challenge
+
+    /// Errors that a quiet page refresh can often fix.
+    var mightRecover: Bool {
+        switch self {
+        case .notSignedIn, .rejected, .challenge: return true
+        default: return false
+        }
+    }
 
     var errorDescription: String? {
         switch self {
@@ -136,6 +146,7 @@ enum ProviderError: LocalizedError {
         case .noAccount: return "Couldn't find your account"
         case .unreadable: return "Couldn't read the usage data"
         case .planMoved(let message): return message
+        case .challenge: return "Blocked by a Cloudflare check"
         }
     }
 }

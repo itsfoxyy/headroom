@@ -80,11 +80,29 @@ enum WebSession {
         }
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw ProviderError.unreadable }
+        await keepCookies(from: http, url: url)
         switch http.statusCode {
         case 200..<300: return data
         case 401: throw ProviderError.notSignedIn
-        case 403: throw ProviderError.rejected
+        case 403:
+            if http.value(forHTTPHeaderField: "cf-mitigated") != nil { throw ProviderError.challenge }
+            throw ProviderError.rejected
         default: throw ProviderError.http(http.statusCode)
+        }
+    }
+
+    /// Sites renew sign-ins and Cloudflare cookies through Set-Cookie on their
+    /// responses. Save them like a browser would, or the sign-in goes stale.
+    private static func keepCookies(from response: HTTPURLResponse, url: URL) async {
+        var fields: [String: String] = [:]
+        for (key, value) in response.allHeaderFields {
+            if let key = key as? String, let value = value as? String { fields[key] = value }
+        }
+        let cookies = HTTPCookie.cookies(withResponseHeaderFields: fields, for: response.url ?? url)
+        guard !cookies.isEmpty else { return }
+        let cookieStore = store.httpCookieStore
+        for cookie in cookies {
+            await cookieStore.setCookie(cookie)
         }
     }
 }

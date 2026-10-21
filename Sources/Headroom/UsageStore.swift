@@ -87,7 +87,11 @@ final class UsageStore: ObservableObject {
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in await self?.refreshAll() }
+            Task { @MainActor in
+                // Give Wi-Fi a moment to reconnect after sleep.
+                try? await Task.sleep(nanoseconds: 6_000_000_000)
+                await self?.refreshAll()
+            }
         }
         if settings.notificationsEnabled { Notifier.requestPermission() }
         Task { await refreshAll() }
@@ -119,7 +123,7 @@ final class UsageStore: ObservableObject {
         let previous = states[service]?.snapshot
         if previous == nil { states[service] = .loading }
         do {
-            let snapshot = try await provider(service).fetch()
+            let snapshot = try await fetchRecovering(service)
             states[service] = .ok(snapshot)
             if settings.notificationsEnabled { notifier.check(snapshot) }
         } catch let error as ProviderError {
@@ -130,12 +134,29 @@ final class UsageStore: ObservableObject {
                 states[service] = .signedOut("Your \(service.name) sign-in expired. Sign in again.")
             case .planMoved(let message):
                 states[service] = .signedOut(message)
+            case .challenge:
+                states[service] = .failed("\(service.name) is asking for a browser check. Retrying shortly", previous)
             default:
                 states[service] = .failed(error.localizedDescription, previous)
             }
         } catch {
             let offline = (error as? URLError)?.code == .notConnectedToInternet
             states[service] = .failed(offline ? "You're offline" : "Couldn't reach \(service.name)", previous)
+        }
+    }
+
+    /// If a service refuses the request, let its website renew the sign-in in a
+    /// hidden page (as an open browser tab would), then try once more.
+    private func fetchRecovering(_ service: ServiceID) async throws -> ServiceSnapshot {
+        let p = provider(service)
+        do {
+            return try await p.fetch()
+        } catch let error as ProviderError where error.mightRecover {
+            let cookies = await WebSession.cookies(for: p.cookieDomains)
+            guard p.isSignedIn(cookies: cookies) else { throw error }
+            await PageRefresh.load(p.usagePageURL)
+            p.reset()
+            return try await p.fetch()
         }
     }
 
