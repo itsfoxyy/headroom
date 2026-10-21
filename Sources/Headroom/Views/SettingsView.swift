@@ -21,18 +21,19 @@ struct SettingsView: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject var store: UsageStore
     @ObservedObject var shortcutStatus: ShortcutStatus
+    @ObservedObject var updater: Updater
     let signIn: (ServiceID) -> Void
 
     var body: some View {
         TabView {
-            GeneralTab(settings: settings)
+            GeneralTab(settings: settings, store: store, updater: updater)
                 .tabItem { Label("General", systemImage: "gearshape") }
             ServicesTab(settings: settings, store: store, signIn: signIn)
                 .tabItem { Label("Services", systemImage: "square.stack.3d.up") }
             ShortcutTab(settings: settings, status: shortcutStatus)
                 .tabItem { Label("Shortcut", systemImage: "keyboard") }
         }
-        .frame(width: 500, height: 470)
+        .frame(width: 500, height: 560)
     }
 }
 
@@ -40,6 +41,8 @@ struct SettingsView: View {
 
 private struct GeneralTab: View {
     @ObservedObject var settings: AppSettings
+    @ObservedObject var store: UsageStore
+    @ObservedObject var updater: Updater
     @State private var launchAtLogin = LoginItem.isEnabled
 
     var body: some View {
@@ -76,6 +79,21 @@ private struct GeneralTab: View {
                         launchAtLogin = LoginItem.isEnabled
                     }
                 ))
+                LabeledContent("Usage history") {
+                    Button("Clear") { store.history.clear() }
+                }
+            }
+            Section("Updates") {
+                if updater.isAvailable {
+                    Toggle("Check for updates automatically", isOn: $updater.automaticallyChecks)
+                    LabeledContent("Headroom \(updater.version)") {
+                        Button("Check for Updates…") { updater.checkForUpdates() }
+                    }
+                } else {
+                    LabeledContent("Headroom \(updater.version)") {
+                        Text("Updates aren't set up in this build").foregroundStyle(.secondary)
+                    }
+                }
             }
         }
         .formStyle(.grouped)
@@ -120,6 +138,12 @@ private struct ServicesTab: View {
             Section("Cursor") {
                 Picker("Plan type", selection: $settings.cursorPlan) {
                     ForEach(CursorPlanSetting.allCases) { Text($0.title).tag($0) }
+                }
+                if settings.cursorPlan == .automatic, settings.connected.contains(.cursor),
+                   let isNew = UserDefaults.standard.object(forKey: "cursorDetectedNewPlan") as? Bool {
+                    Text(isNew ? "Detected: new plan (weekly pool)" : "Detected: legacy plan (monthly pools)")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
             }
 

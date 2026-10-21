@@ -89,9 +89,9 @@ final class AppSettings: ObservableObject {
         let minutes = defaults.integer(forKey: "refreshMinutes")
         refreshMinutes = [1, 2, 5].contains(minutes) ? minutes : 2
         notificationsEnabled = defaults.object(forKey: "notificationsEnabled") as? Bool ?? true
-        // Existing installs were Claude-only, so Claude starts connected.
+        // Fresh installs start with nothing connected; the welcome window offers the sign-ins.
         let saved = defaults.stringArray(forKey: "connectedServices")
-        connected = saved?.compactMap(ServiceID.init(rawValue:)) ?? [.claude]
+        connected = saved?.compactMap(ServiceID.init(rawValue:)) ?? []
         shortcutEnabled = defaults.object(forKey: "shortcutEnabled") as? Bool ?? true
         if defaults.object(forKey: "shortcutKey") != nil {
             shortcut = Shortcut(keyCode: UInt32(defaults.integer(forKey: "shortcutKey")),

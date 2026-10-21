@@ -12,6 +12,7 @@ final class UsageStore: ObservableObject {
     @Published var expandedService: ServiceID?
 
     let settings: AppSettings
+    let history = UsageHistory()
     let claude = ClaudeProvider()
     let chatgpt = ChatGPTProvider()
     let cursor: CursorProvider
@@ -125,6 +126,7 @@ final class UsageStore: ObservableObject {
         do {
             let snapshot = try await fetchRecovering(service)
             states[service] = .ok(snapshot)
+            history.record(snapshot)
             if settings.notificationsEnabled { notifier.check(snapshot) }
         } catch let error as ProviderError {
             switch error {

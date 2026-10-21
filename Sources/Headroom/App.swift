@@ -25,11 +25,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let notificationPresenter = NotificationPresenter()
     private let hotKey = HotKey()
     private let shortcutStatus = ShortcutStatus()
+    private lazy var updater = Updater()
     private var settingsWindow: NSWindow?
+    private var historyWindow: NSWindow?
+    private var welcomeWindow: NSWindow?
     private var signInWindows: [ServiceID: SignInWindowController] = [:]
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        MainMenu.install()
+        _ = updater // starts the update checks
         if Notifier.canNotify {
             UNUserNotificationCenter.current().delegate = notificationPresenter
         }
@@ -40,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 NSWorkspace.shared.open(self.store.provider(service).usagePageURL)
             },
             openSettings: { [weak self] in self?.showSettings() },
+            openHistory: { [weak self] in self?.showHistory() },
             signIn: { [weak self] service in self?.showSignIn(service) },
             quit: { NSApp.terminate(nil) }
         )
@@ -54,6 +60,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &cancellables)
 
         store.start()
+
+        if !UserDefaults.standard.bool(forKey: "welcomeShown") {
+            showWelcome()
+        }
+    }
+
+    private func showWelcome() {
+        if welcomeWindow == nil {
+            let view = WelcomeView(
+                store: store, settings: settings,
+                signIn: { [weak self] service in self?.showSignIn(service) },
+                done: { [weak self] in self?.welcomeWindow?.close() }
+            )
+            let window = NSWindow(contentViewController: NSHostingController(rootView: view))
+            window.title = "Welcome to Headroom"
+            window.styleMask = [.titled, .closable]
+            window.isReleasedWhenClosed = false
+            window.center()
+            welcomeWindow = window
+        }
+        // Shown once, however it gets closed.
+        UserDefaults.standard.set(true, forKey: "welcomeShown")
+        NSApp.activate(ignoringOtherApps: true)
+        welcomeWindow?.makeKeyAndOrderFront(nil)
     }
 
     private func registerShortcut(_ shortcut: Shortcut, enabled: Bool) {
@@ -74,7 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showSettings() {
         if settingsWindow == nil {
-            let view = SettingsView(settings: settings, store: store, shortcutStatus: shortcutStatus,
+            let view = SettingsView(settings: settings, store: store, shortcutStatus: shortcutStatus, updater: updater,
                                     signIn: { [weak self] service in self?.showSignIn(service) })
             let window = NSWindow(contentViewController: NSHostingController(rootView: view))
             window.title = "Headroom Settings"
@@ -85,6 +115,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    private func showHistory() {
+        if historyWindow == nil {
+            let window = NSWindow(contentViewController: NSHostingController(rootView: HistoryView(history: store.history)))
+            window.title = "Headroom History"
+            window.styleMask = [.titled, .closable, .miniaturizable]
+            window.isReleasedWhenClosed = false
+            window.center()
+            historyWindow = window
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        historyWindow?.makeKeyAndOrderFront(nil)
     }
 
     private func showSignIn(_ service: ServiceID) {

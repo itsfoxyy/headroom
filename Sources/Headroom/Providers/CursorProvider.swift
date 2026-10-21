@@ -40,18 +40,18 @@ final class CursorProvider: UsageProvider {
         guard let summary = JSON.object(summaryData) else { throw ProviderError.unreadable }
 
         let membership = (summary["membershipType"] as? String ?? "").lowercased()
-        let limitType = (summary["limitType"] as? String ?? "").lowercased()
-        let detectedNew = membership.hasPrefix("unified_") && limitType != "team"
+        let weekly = await weeklyAllowance(cookie: cookie)
+
         let useNew: Bool
         switch settings.cursorPlan {
-        case .automatic: useNew = detectedNew
+        case .automatic: useNew = detectPlan(summary: summary, membership: membership, weekly: weekly)
         case .current: useNew = true
         case .legacy: useNew = false
         }
 
         let limits: [UsageLimit]
         if useNew {
-            limits = try await newPlanLimits(summary: summary, cookie: cookie)
+            limits = try await newPlanLimits(summary: summary, weekly: weekly, cookie: cookie)
         } else {
             limits = try await legacyLimits(summary: summary, cookie: cookie)
         }
@@ -59,20 +59,75 @@ final class CursorProvider: UsageProvider {
         return ServiceSnapshot(service: .cursor, plan: Self.planName(membership), limits: limits, fetchedAt: Date())
     }
 
+    // MARK: Which plan?
+
+    private static let rememberedPlanKey = "cursorDetectedNewPlan"
+
+    /// The plan name alone isn't reliable, so this also looks at which pool is
+    /// actually in use: the weekly allowance (new plan) or the monthly pools
+    /// (legacy). The answer is remembered for when nothing is in use yet.
+    private func detectPlan(summary: [String: Any], membership: String, weekly: WeeklyAllowance?) -> Bool {
+        let limitType = (summary["limitType"] as? String ?? "").lowercased()
+        let plan = (summary["individualUsage"] as? [String: Any])?["plan"] as? [String: Any]
+        let legacyPercents = ["autoPercentUsed", "apiPercentUsed", "totalPercentUsed"]
+            .compactMap { JSON.number(plan?[$0]) }
+        let legacyInUse = legacyPercents.contains { $0 > 0 }
+            || (JSON.number(plan?["used"]) ?? 0) > 0
+
+        let isNew: Bool
+        if limitType == "team" {
+            isNew = false
+        } else if membership.hasPrefix("unified_") || Self.newPlanTiers.contains(membership) {
+            isNew = true
+        } else if plan == nil, weekly != nil {
+            isNew = true
+        } else if let weekly = weekly, weekly.percent > 0, !legacyInUse {
+            isNew = true
+        } else if legacyInUse {
+            isNew = false
+        } else if let remembered = UserDefaults.standard.object(forKey: Self.rememberedPlanKey) as? Bool {
+            isNew = remembered
+        } else {
+            isNew = weekly != nil
+        }
+        UserDefaults.standard.set(isNew, forKey: Self.rememberedPlanKey)
+        return isNew
+    }
+
+    /// Tier names used by the new subscription.
+    private static let newPlanTiers: Set<String> = ["plus", "premium", "super", "x_plus", "x_premium", "x_super"]
+
     // MARK: New plan (weekly)
 
-    private func newPlanLimits(summary: [String: Any], cookie: String) async throws -> [UsageLimit] {
+    private struct WeeklyAllowance {
+        let percent: Double
+        let resetsAt: Date?
+    }
+
+    // POST /api/dashboard/get-sand-usage-status
+    //   { "usagePercent": 62, "nextResetTimestampUtc": "…", "includedLimitZero": false,
+    //     "hasNonZeroIncludedLimit": true, … }
+    private func weeklyAllowance(cookie: String) async -> WeeklyAllowance? {
+        guard let data = try? await post("/api/dashboard/get-sand-usage-status", cookie: cookie),
+              let status = JSON.object(data),
+              let percent = JSON.number(status["usagePercent"]) else { return nil }
+        let available: Bool
+        if let zero = status["includedLimitZero"] as? Bool {
+            available = !zero
+        } else {
+            available = (status["hasNonZeroIncludedLimit"] as? Bool) ?? false
+        }
+        guard available else { return nil }
+        return WeeklyAllowance(percent: min(max(percent, 0), 100),
+                               resetsAt: JSON.date(status["nextResetTimestampUtc"]))
+    }
+
+    private func newPlanLimits(summary: [String: Any], weekly: WeeklyAllowance?, cookie: String) async throws -> [UsageLimit] {
         var limits: [UsageLimit] = []
 
-        // POST /api/dashboard/get-sand-usage-status
-        //   { "usagePercent": 62, "nextResetTimestampUtc": "…", "includedLimitZero": false, … }
-        if let data = try? await post("/api/dashboard/get-sand-usage-status", cookie: cookie),
-           let status = JSON.object(data),
-           let percent = JSON.number(status["usagePercent"]),
-           (status["includedLimitZero"] as? Bool) != true {
+        if let weekly = weekly {
             limits.append(UsageLimit(id: "weekly_pool", title: "Weekly pool", shortTitle: "Weekly",
-                                     percent: min(max(percent, 0), 100),
-                                     resetsAt: JSON.date(status["nextResetTimestampUtc"]),
+                                     percent: weekly.percent, resetsAt: weekly.resetsAt,
                                      note: "Shared with Grok"))
         }
 

@@ -4,6 +4,7 @@ import SwiftUI
 struct PopoverActions {
     var openUsagePage: (ServiceID) -> Void
     var openSettings: () -> Void
+    var openHistory: () -> Void
     var signIn: (ServiceID) -> Void
     var quit: () -> Void
 }
@@ -77,6 +78,7 @@ struct PopoverView: View {
                     .foregroundStyle(.secondary)
                     .padding(.leading, 8)
                 Spacer()
+                TextButton("History…", action: actions.openHistory).keyboardShortcut("h")
                 TextButton("Settings…", action: actions.openSettings).keyboardShortcut(",")
                 TextButton("Quit", action: actions.quit).keyboardShortcut("q")
             }

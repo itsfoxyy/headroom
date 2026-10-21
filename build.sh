@@ -12,13 +12,16 @@
 #   Notarizing (Developer ID only), either:
 #     NOTARY_PROFILE=name                 a profile saved with `xcrun notarytool store-credentials`
 #   or APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD
+#
+# Automatic updates are switched on when Sparkle/public_ed_key exists
+# (create it with Scripts/setup_updates.sh).
 set -euo pipefail
 cd "$(dirname "$0")"
 
 APP_NAME="Headroom"
 EXECUTABLE="Headroom"
 BUNDLE_ID="${BUNDLE_ID:-io.github.itsfoxyy.headroom}"
-VERSION="${VERSION:-1.0.0}"
+VERSION="${VERSION:-1.1.0}"
 MODE="${1:-install}"
 
 if ! command -v swift >/dev/null 2>&1; then
@@ -43,6 +46,30 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/$EXECUTABLE" "$APP/Contents/MacOS/$EXECUTABLE"
 
+# Sparkle (automatic updates) ships as a framework inside the app.
+SPARKLE_SRC="$BIN_DIR/Sparkle.framework"
+if [[ ! -d "$SPARKLE_SRC" ]]; then
+  SPARKLE_SRC="$(find .build/artifacts -type d -name Sparkle.framework -path "*macos*" 2>/dev/null | head -1 || true)"
+fi
+if [[ -z "$SPARKLE_SRC" || ! -d "$SPARKLE_SRC" ]]; then
+  echo "Couldn't find Sparkle.framework after building." >&2
+  exit 1
+fi
+mkdir -p "$APP/Contents/Frameworks"
+ditto "$SPARKLE_SRC" "$APP/Contents/Frameworks/Sparkle.framework"
+install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/$EXECUTABLE" 2>/dev/null || true
+
+UPDATE_KEYS=""
+if [[ -s Sparkle/public_ed_key ]]; then
+  PUBLIC_KEY="$(tr -d '[:space:]' < Sparkle/public_ed_key)"
+  UPDATE_KEYS="  <key>SUFeedURL</key><string>https://github.com/itsfoxyy/headroom/releases/latest/download/appcast.xml</string>
+  <key>SUPublicEDKey</key><string>$PUBLIC_KEY</string>
+  <key>SUEnableAutomaticChecks</key><true/>
+  <key>SUScheduledCheckInterval</key><integer>86400</integer>"
+else
+  echo "⚠︎ No Sparkle/public_ed_key, so this build won't check for updates."
+fi
+
 echo "→ Drawing the app icon"
 rm -rf build/AppIcon.iconset
 swift Scripts/make_icon.swift build/AppIcon.iconset >/dev/null
@@ -66,6 +93,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSHumanReadableCopyright</key><string>MIT License · github.com/itsfoxyy/headroom</string>
+$UPDATE_KEYS
 </dict>
 </plist>
 PLIST
@@ -86,14 +114,22 @@ fi
 
 if [[ "$IDENTITY" == Developer\ ID* ]]; then
   echo "→ Signing as: $IDENTITY (hardened runtime)"
-  codesign --force --options runtime --timestamp --sign "$IDENTITY" "$APP"
+  SIGN_ARGS=(--force --options runtime --timestamp --sign "$IDENTITY")
 elif [[ -n "$IDENTITY" ]]; then
   echo "→ Signing as: $IDENTITY"
-  codesign --force --timestamp=none --sign "$IDENTITY" "$APP"
+  SIGN_ARGS=(--force --timestamp=none --sign "$IDENTITY")
 else
   echo "⚠︎ No signing certificate found, so signing locally (ad-hoc)."
-  codesign --force --sign - "$APP" >/dev/null
+  SIGN_ARGS=(--force --sign -)
 fi
+
+# Inside out: Sparkle's helpers, then the framework, then the app.
+FW="$APP/Contents/Frameworks/Sparkle.framework"
+for item in "$FW/Versions/B/XPCServices/"*.xpc "$FW/Versions/B/Autoupdate" "$FW/Versions/B/Updater.app"; do
+  if [[ -e "$item" ]]; then codesign "${SIGN_ARGS[@]}" "$item" >/dev/null; fi
+done
+codesign "${SIGN_ARGS[@]}" "$FW" >/dev/null
+codesign "${SIGN_ARGS[@]}" "$APP" >/dev/null
 
 if [[ "$MODE" == "--no-install" ]]; then
   echo "✓ Built $APP"

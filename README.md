@@ -29,6 +29,8 @@ can plan heavy work instead of running into a wall.
 - **Global shortcut** (⌥⌘U by default) shows a quick peek from any app, even
   when the menu bar icon is hidden by a menu bar manager or the notch.
 - **Alerts** at 80% and 95% of any limit.
+- **Usage history:** 24-hour and 7-day charts for every limit, kept on your Mac.
+- **Automatic updates,** so fixes arrive as soon as a service changes something.
 - **Supports both Cursor plan types:** the new weekly plan and legacy monthly plans.
 - Launch at login, light and dark mode, no Dock icon.
 
@@ -57,7 +59,10 @@ under Settings › Services.
   session key is kept in your Keychain.
 - **Headroom only talks to claude.ai, chatgpt.com and cursor.com**, making the
   same requests their own usage pages make. Each service's sign-in is only
-  ever sent to that service.
+  ever sent to that service. The only other request is the daily update check
+  to this GitHub repository, which sends nothing about you.
+- **Usage history** is kept for 7 days in
+  `~/Library/Application Support/Headroom/history.json`. Clear it in Settings › General.
 - **No servers, analytics, tracking or crash reporting.** The code is all here
   to check.
 - Like browser cookies, the stored sign-ins are protected by your macOS user
@@ -102,6 +107,8 @@ again after any change. `./build.sh --release` makes a zip in `dist/` instead.
 | `Sources/Headroom/StatusItemController.swift` | Menu bar label, dropdown and quick peek windows |
 | `Sources/Headroom/Views/` | Dropdown layouts, quick peek, Settings |
 | `Sources/Headroom/HotKey.swift` | The global shortcut |
+| `Sources/Headroom/UsageHistory.swift` | Saved usage history |
+| `Sources/Headroom/Updater.swift` | Automatic updates (Sparkle) |
 | `Scripts/make_icon.swift` | Draws the app icon at build time |
 
 If a service stops working, the fix is almost always in its provider file.
@@ -115,6 +122,12 @@ Push a version tag and GitHub builds the app and publishes a release:
 git tag v1.0.0
 git push origin v1.0.0
 ```
+
+**Automatic updates** need a signing key, set up once with
+`Scripts/setup_updates.sh`. It keeps the private key in your Keychain, writes
+the public key to `Sparkle/public_ed_key` (commit it) and copies the private key
+for the `SPARKLE_PRIVATE_KEY` repository secret. Each release then includes a
+signed `appcast.xml` that installed copies check daily.
 
 Releases are signed with a local signature unless these repository secrets
 are set, in which case they're signed with a Developer ID and notarized by

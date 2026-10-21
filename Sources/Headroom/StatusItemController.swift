@@ -196,6 +196,7 @@ final class StatusItemController: NSObject {
         let wrapped = PopoverActions(
             openUsagePage: { [weak self] service in self?.hideAll(); actions.openUsagePage(service) },
             openSettings: { [weak self] in self?.hideAll(); actions.openSettings() },
+            openHistory: { [weak self] in self?.hideAll(); actions.openHistory() },
             signIn: { [weak self] service in self?.hideAll(); actions.signIn(service) },
             quit: actions.quit
         )

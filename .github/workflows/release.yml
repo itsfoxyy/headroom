@@ -19,6 +19,7 @@ jobs:
       APPLE_ID: ${{ secrets.APPLE_ID }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -49,12 +50,45 @@ jobs:
       - name: Build
         run: ./build.sh --release
 
+      # The feed installed apps check for updates. Only written when the
+      # update signing key has been added as a secret (Scripts/setup_updates.sh).
+      - name: Write the update feed
+        if: env.SPARKLE_PRIVATE_KEY != '' && github.ref_type == 'tag'
+        run: |
+          mkdir -p build/sparkle-tools
+          curl -fsSL "https://github.com/sparkle-project/Sparkle/releases/download/2.10.0/Sparkle-2.10.0.tar.xz" \
+            | tar -xJ -C build/sparkle-tools ./bin
+          ZIP="dist/Headroom-$VERSION.zip"
+          SIGNATURE="$(echo "$SPARKLE_PRIVATE_KEY" | build/sparkle-tools/bin/sign_update --ed-key-file - "$ZIP")"
+          URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/Headroom-$VERSION.zip"
+          PUBDATE="$(date -u '+%a, %d %b %Y %H:%M:%S +0000')"
+          cat > dist/appcast.xml <<XML
+          <?xml version="1.0" encoding="utf-8"?>
+          <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+            <channel>
+              <title>Headroom</title>
+              <item>
+                <title>Headroom $VERSION</title>
+                <pubDate>$PUBDATE</pubDate>
+                <sparkle:version>$VERSION</sparkle:version>
+                <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
+                <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+                <sparkle:releaseNotesLink>https://github.com/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME</sparkle:releaseNotesLink>
+                <enclosure url="$URL" $SIGNATURE type="application/octet-stream"/>
+              </item>
+            </channel>
+          </rss>
+          XML
+          cat dist/appcast.xml
+
       - name: Publish release
         if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/*.zip dist/*.sha256 \
+          FILES=(dist/*.zip dist/*.sha256)
+          if [[ -f dist/appcast.xml ]]; then FILES+=(dist/appcast.xml); fi
+          gh release create "$GITHUB_REF_NAME" "${FILES[@]}" \
             --title "Headroom $VERSION" --generate-notes
 
       - name: Keep the build (manual runs)
