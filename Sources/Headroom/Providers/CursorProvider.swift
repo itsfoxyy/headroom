@@ -115,7 +115,7 @@ final class CursorProvider: UsageProvider {
         if let zero = status["includedLimitZero"] as? Bool {
             available = !zero
         } else {
-            available = (status["hasNonZeroIncludedLimit"] as? Bool) ?? false
+            available = (status["hasNonZeroIncludedLimit"] as? Bool) ?? true
         }
         guard available else { return nil }
         return WeeklyAllowance(percent: min(max(percent, 0), 100),

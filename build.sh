@@ -126,7 +126,12 @@ fi
 # Inside out: Sparkle's helpers, then the framework, then the app.
 FW="$APP/Contents/Frameworks/Sparkle.framework"
 for item in "$FW/Versions/B/XPCServices/"*.xpc "$FW/Versions/B/Autoupdate" "$FW/Versions/B/Updater.app"; do
-  if [[ -e "$item" ]]; then codesign "${SIGN_ARGS[@]}" "$item" >/dev/null; fi
+  [[ -e "$item" ]] || continue
+  if [[ "$item" == *Downloader.xpc ]]; then
+    codesign "${SIGN_ARGS[@]}" --preserve-metadata=entitlements "$item" >/dev/null
+  else
+    codesign "${SIGN_ARGS[@]}" "$item" >/dev/null
+  fi
 done
 codesign "${SIGN_ARGS[@]}" "$FW" >/dev/null
 codesign "${SIGN_ARGS[@]}" "$APP" >/dev/null

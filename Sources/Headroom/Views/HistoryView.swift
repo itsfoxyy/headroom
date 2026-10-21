@@ -111,7 +111,7 @@ private struct ServiceHistoryCard: View {
                     AxisMarks(position: .leading, values: [0, 50, 80, 100]) { value in
                         AxisGridLine()
                         AxisValueLabel {
-                            if let v = value.as(Int.self) { Text("\(v)%") }
+                            if let v = value.as(Double.self) { Text("\(Int(v))%") }
                         }
                     }
                 }

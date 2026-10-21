@@ -82,6 +82,8 @@ final class AppSettings: ObservableObject {
     @Published var cursorPlan: CursorPlanSetting { didSet { defaults.set(cursorPlan.rawValue, forKey: "cursorPlan") } }
 
     init() {
+        // 1.0.x set this flag on every launch, so it marks an upgrade rather than a fresh install.
+        let isUpgrade = UserDefaults.standard.object(forKey: "migratedEarlySettings") != nil
         AppSettings.migrateFromEarlyBuilds()
         layout = PopoverLayout(rawValue: defaults.string(forKey: "layout") ?? "") ?? .compact
         labelStyle = LabelStyle(rawValue: defaults.string(forKey: "labelStyle2") ?? "") ?? .rings
@@ -91,7 +93,9 @@ final class AppSettings: ObservableObject {
         notificationsEnabled = defaults.object(forKey: "notificationsEnabled") as? Bool ?? true
         // Fresh installs start with nothing connected; the welcome window offers the sign-ins.
         let saved = defaults.stringArray(forKey: "connectedServices")
-        connected = saved?.compactMap(ServiceID.init(rawValue:)) ?? []
+        // 1.0.x never saved the list when only Claude was connected, so keep Claude for upgraders.
+        connected = saved?.compactMap(ServiceID.init(rawValue:)) ?? (isUpgrade ? [.claude] : [])
+        if isUpgrade { defaults.set(true, forKey: "welcomeShown") }
         shortcutEnabled = defaults.object(forKey: "shortcutEnabled") as? Bool ?? true
         if defaults.object(forKey: "shortcutKey") != nil {
             shortcut = Shortcut(keyCode: UInt32(defaults.integer(forKey: "shortcutKey")),
