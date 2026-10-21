@@ -28,8 +28,14 @@ if ! command -v swift >/dev/null 2>&1; then
 fi
 
 echo "→ Compiling Headroom ${VERSION}…"
-swift build -c release
-BIN_DIR="$(swift build -c release --show-bin-path)"
+if [[ "$MODE" == "--release" ]]; then
+  # Releases run on both Apple Silicon and Intel Macs.
+  ARCH_FLAGS=(--arch arm64 --arch x86_64)
+else
+  ARCH_FLAGS=()
+fi
+swift build -c release ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
+BIN_DIR="$(swift build -c release ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --show-bin-path)"
 
 APP="build/$APP_NAME.app"
 echo "→ Packaging $APP"
